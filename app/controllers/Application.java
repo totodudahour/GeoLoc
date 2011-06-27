@@ -3,24 +3,29 @@ package controllers;
 import java.io.IOException;
 import java.util.Map;
 
+import models.GeoLoc;
+
+import org.apache.log4j.Logger;
+
 import play.mvc.Controller;
 
 import com.simplegeo.client.SimpleGeoContextClient;
 
 public class Application extends Controller {
 
+    private static final Logger logger = Logger.getLogger(Application.class);
+
     public static void index() {
-        render();
+	render();
     }
-    
+
     public static void getLocation(double lat, double lon) {
-	SimpleGeoContextClient client = SimpleGeoContextClient.getInstance();
-	client.getHttpClient().setToken("X6KaFHCvJxPMdvzvp4Y6kbKbhJPeA7vq", "SE7W5gmB3gLG2eNAxhUbk6M6mA7FUT99");
+	SimpleGeoContextClient client = GeoLoc.getInstance().getClient();
 	try {
 	    Map<String, Object> map = client.getContext(lat, lon);
 	    renderJSON(map);
 	} catch (IOException e) {
-	    e.printStackTrace();
+	    logger.fatal(e);
 	}
     }
 }
