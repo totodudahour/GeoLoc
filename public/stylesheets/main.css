@@ -1,0 +1,6 @@
+#mapDiv {
+	background: -moz-radial-gradient(50% 50%, farthest-side, #BBD2E1, #8EA2C6);
+	background: -webkit-gradient(radial, 50% 50%, 0, 50% 50%, 350, from(#BBD2E1), to(#8EA2C6));
+	-moz-box-shadow: 5px 5px 5px #000;
+	-webkit-box-shadow: 5px 5px 5px #000;
+}
