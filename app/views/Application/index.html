@@ -1,4 +1,55 @@
 #{extends 'main.html' /}
 #{set title:'Home' /}
+#{set 'moreScripts'}
+    <script src="http://serverapi.arcgisonline.com/jsapi/arcgis/?v=2.3" type="text/javascript"></script>
+#{/set}
+#{set 'moreStyles'}
+    <link href="http://serverapi.arcgisonline.com/jsapi/arcgis/2.3/js/dojo/dijit/themes/claro/claro.css" rel="stylesheet" type="text/css" >
+#{/set}
 
-#{welcome /}
+<div id="status">Your location : Checking...</div>
+<div id="mapDiv" style="width:900px; height:600px; border:1px solid #000;"></div>
+
+<script>
+	var plon;
+	var plat;
+	
+	function success(position) {
+		var s = document.querySelector('#status');
+		plon = position.coords.longitude
+		plat = position.coords.latitude
+		s.innerHTML = "Your location : Latitude " + plat + " / Longitude " + plon;
+	}
+
+	function error(msg) {
+		var s = document.querySelector('#status');
+		s.innerHTML = typeof msg == 'string' ? msg : "failed";
+	}
+
+	if (navigator.geolocation) {
+		navigator.geolocation.getCurrentPosition(success, error);
+	} else {
+		error('not supported');
+	}
+	
+	var listAction = #{jsAction @getLocation(':lat', ':lon') /}
+		$.getJSON(
+		listAction({lat: '47.989921667414166', lon: '1.0546875'}), 
+		function(data) {
+			$.each(data, function(key, val) {
+				console.log(key);
+				console.log(val);
+			});
+		}
+   	)
+   
+	dojo.require("esri.map");
+	var map;
+	function init() {
+    	map = new esri.Map("mapDiv");
+    	var basemapURL= "http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer"
+    	var basemap = new esri.layers.ArcGISTiledMapServiceLayer(basemapURL);
+    	map.addLayer(basemap);
+  	}
+ 	dojo.addOnLoad(init);  
+</script>
