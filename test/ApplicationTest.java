@@ -19,5 +19,6 @@ public class ApplicationTest extends FunctionalTest {
 	WS.HttpResponse response = WS.url("http://localhost:9000/Application/getLocation").setParameter("lat", new Double(47.989921667414166)).setParameter("lon", new Double(1.0546875)).post();
 	assertEquals(new Double(200), new Double(response.getStatus()));
 	assertNotNull(response.getJson());
+	System.out.println(response.getJson().toString());
     }
 }
