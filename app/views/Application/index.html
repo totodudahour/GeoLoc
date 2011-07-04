@@ -1,55 +1,213 @@
 #{extends 'main.html' /}
 #{set title:'Home' /}
 #{set 'moreScripts'}
-    <script src="http://serverapi.arcgisonline.com/jsapi/arcgis/?v=2.3" type="text/javascript"></script>
-#{/set}
+<script src="http://serverapi.arcgisonline.com/jsapi/arcgis/?v=2.3" type="text/javascript"></script>
+#{/set} 
 #{set 'moreStyles'}
-    <link href="http://serverapi.arcgisonline.com/jsapi/arcgis/2.3/js/dojo/dijit/themes/claro/claro.css" rel="stylesheet" type="text/css" >
+<link href="http://serverapi.arcgisonline.com/jsapi/arcgis/2.3/js/dojo/dijit/themes/claro/claro.css" rel="stylesheet" type="text/css"/>
 #{/set}
 
 <div id="status">Your location : Checking...</div>
-<div id="mapDiv" style="width:900px; height:600px; border:1px solid #000;"></div>
+<div id="map" style="width: 900px; height: 600px; border: 1px solid #000;"></div>
 
 <script>
-	var plon;
-	var plat;
-	
+	/** Display the location when found */
 	function success(position) {
 		var s = document.querySelector('#status');
-		plon = position.coords.longitude
-		plat = position.coords.latitude
-		s.innerHTML = "Your location : Latitude " + plat + " / Longitude " + plon;
+		lon = position.coords.longitude;
+		lat = position.coords.latitude;
+		s.innerHTML = "Your location : Latitude " + lat + " / Longitude " + lon;
+		
+		var listAction = #{jsAction @getLocation(':lat', ':lon') /}
+		$.getJSON(
+			listAction({lat: lat, lon: lon}), 
+			function(data) {
+				$.each(data, function(key, val) {
+					console.log(key);
+					console.log(val);
+				});
+			}
+	   	)
 	}
 
+	/** Display an error when location is not found */
 	function error(msg) {
 		var s = document.querySelector('#status');
 		s.innerHTML = typeof msg == 'string' ? msg : "failed";
 	}
 
+	/** Check location */
 	if (navigator.geolocation) {
 		navigator.geolocation.getCurrentPosition(success, error);
 	} else {
 		error('not supported');
 	}
-	
-	var listAction = #{jsAction @getLocation(':lat', ':lon') /}
-		$.getJSON(
-		listAction({lat: '47.989921667414166', lon: '1.0546875'}), 
-		function(data) {
-			$.each(data, function(key, val) {
-				console.log(key);
-				console.log(val);
-			});
-		}
-   	)
    
-	dojo.require("esri.map");
-	var map;
-	function init() {
-    	map = new esri.Map("mapDiv");
-    	var basemapURL= "http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer"
+    dojo.require("esri.map");
+    dojo.require("esri.layers.agstiled");
+    dojo.require("esri.toolbars.draw");
+    
+	var map, tb;
+	/** Init and display ArcGis map, then show toolbar or marker */
+	function init() {		
+        map = new esri.Map("map");
+    	var basemapURL= "http://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer";
     	var basemap = new esri.layers.ArcGISTiledMapServiceLayer(basemapURL);
     	map.addLayer(basemap);
+    	
+    	dojo.connect(map, "onLoad", initMarker);
   	}
- 	dojo.addOnLoad(init);  
+	
+	/** Init the toolbar found in the ArcGis samples */
+    function initToolbar(map) {
+    	tb = new esri.toolbars.Draw(map);
+    	dojo.connect(tb, "onDrawEnd", addGraphic);
+    }
+    
+    /** Display a point on the map */
+    function initMarker(map) {
+        /*var geometry = esri.geometry.geographicToWebMercator(new esri.geometry.Point(item.longitude, item.latitude));
+        [17:40:11,099] ({type:"point", x:1.7578125, y:45.3515625, spatialReference:{wkid:4326}})
+		[17:42:47,039] ({style:"circle", color:{r:255, g:255, b:255, a:0.25}, outline:{width:1.3333333333333333, color:{r:0, g:0, b:0, a:1}, style:"solid"}, size:16})
+        [17:42:47,024] ({type:"point", x:-0.615234375, y:44.82421875, spatialReference:{wkid:4326}})
+        [17:57:28,052] ({type:"point", x:-64818.599985815, y:5595190.4704734385, spatialReference:{wkid:102100}})*/
+        
+        var symbol = new esri.symbol.SimpleMarkerSymbol();
+        var geometry = new esri.geometry.Point(-64818.599985815, 5595190.4704734385, new esri.SpatialReference({ wkid: 102100 }));
+        map.graphics.add(new esri.Graphic(geometry, symbol));
+    }
+
+    /** Display the selected toolbar graphic */
+    function addGraphic(geometry) {
+    	var symbol = dojo.byId("symbol").value;
+        if (symbol) {
+			symbol = eval(symbol);
+      	}
+      	else {
+        	var type = geometry.type;
+        	if (type === "point" || type === "multipoint") {
+         		symbol = tb.markerSymbol;
+        	}
+	        else if (type === "line" || type === "polyline") {
+	          	symbol = tb.lineSymbol;
+	        }
+	        else {
+	          	symbol = tb.fillSymbol;
+	        }
+		}
+
+	    console.log(geometry);
+	    console.log(symbol);
+	    map.graphics.add(new esri.Graphic(geometry, symbol));
+    }
+	
+    /** Load ArcGis map */
+ 	dojo.addOnLoad(init);
 </script>
+
+<!-- ArcGis toolbar -->
+<div class="tundra">
+	<button onclick="tb.activate(esri.toolbars.Draw.POINT);">Point</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.MULTI_POINT);">Multipoint</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.EXTENT);">Extent</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.POLYLINE);">Polyline</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.FREEHAND_POLYLINE);">Freehand
+		Polyline</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.POLYGON);">Polygon</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.FREEHAND_POLYGON);">Freehand
+		Polygon</button>
+	<button onclick="tb.activate(esri.toolbars.Draw.LINE);">Line</button>
+
+	<button onclick="tb.deactivate()">Deactivate</button>
+
+	<select id="symbol">
+		<option value="">--- Select Symbol ---</option>
+		<option value="">--- Simple Marker Symbols ---</option>
+		<option value="new esri.symbol.SimpleMarkerSymbol();">Default</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_SQUARE, 10, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 1), new dojo.Color([0,255,0,0.25]))">Square</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_CROSS, 50, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASH, new dojo.Color([0,0,0]), 2))">Cross,
+			dash outline</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_X, 25, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DOT, new dojo.Color([0,0,255]), 2))">X,
+			dot outline</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND, 20, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 1), new dojo.Color([255,255,0,0.5]))">Diamond</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND, 30, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 3), new dojo.Color([255,255,0,0.5])).setAngle(15)">Diamond,
+			15 angle</option>
+		<option
+			value="new esri.symbol.SimpleMarkerSymbol(esri.symbol.SimpleMarkerSymbol.STYLE_DIAMOND, 30, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([0,0,0]), 3), new dojo.Color([255,255,0,0.5])).setAngle(15).setOffset(0,5)">Diamond,
+			15 angle, 5 offset in Y</option>
+		<option value="">--- Picture Marker Symbols ---</option>
+		<option value="">No Default</option>
+		<option
+			value="new esri.symbol.PictureMarkerSymbol('http://www.esri.com/graphics/aexicon.jpg', 51, 51)">Simple
+			Globe</option>
+		<option
+			value="new esri.symbol.PictureMarkerSymbol('http://www.esri.com/graphics/aexicon.jpg', 25, 25).setAngle(315)">Simple
+			Globe, 25x25, 315 angle</option>
+		<option
+			value="new esri.symbol.PictureMarkerSymbol('http://www.esri.com/graphics/aexicon.jpg', 51, 25).setAngle(315).setOffset(10,0)">Simple
+			Globe, 25x25, 315 angle, 10 offsetx</option>
+
+		<option value="">--- Simple Line Symbols ---</option>
+		<option value="new esri.symbol.SimpleLineSymbol();">Default</option>
+		<option
+			value="new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 1)">Solid</option>
+		<option
+			value="new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2)">Dash
+			Dot</option>
+		<option
+			value="new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASH, new dojo.Color([255,0,0]), 3)">Dash</option>
+		<option
+			value="new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DOT, new dojo.Color([255,0,0]), 5)">Dot</option>
+		<option value="">--- Cartographic Line Symbols ---</option>
+		<option value="new esri.symbol.CartographicLineSymbol()">Default</option>
+		<option
+			value="new esri.symbol.CartographicLineSymbol(esri.symbol.CartographicLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 10)">Solid</option>
+		<option
+			value="new esri.symbol.CartographicLineSymbol(esri.symbol.CartographicLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 10, esri.symbol.CartographicLineSymbol.CAP_ROUND, esri.symbol.CartographicLineSymbol.JOIN_ROUND)">Solid,
+			round cap, round join</option>
+		<option
+			value="new esri.symbol.CartographicLineSymbol(esri.symbol.CartographicLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 10, esri.symbol.CartographicLineSymbol.CAP_SQUARE, esri.symbol.CartographicLineSymbol.JOIN_BEVEL)">Solid,
+			square cap, bevel join</option>
+		<option
+			value="new esri.symbol.CartographicLineSymbol(esri.symbol.CartographicLineSymbol.STYLE_SOLID, new dojo.Color([255,0,0]), 10, esri.symbol.CartographicLineSymbol.CAP_ROUND, esri.symbol.CartographicLineSymbol.JOIN_MITER, 5)">Solid,
+			round cap, miter (5) join</option>
+		<option value="">--- Simple Fill Symbols ---</option>
+		<option value="new esri.symbol.SimpleFillSymbol()">Default</option>
+		<option
+			value="new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_NULL, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2))">None</option>
+		<option
+			value="new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_SOLID, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2), new dojo.Color([255,255,0,0.5]))">Solid</option>
+		<option
+			value="new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_HORIZONTAL, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2), new dojo.Color([255,255,0,0.25]))">Horizontal</option>
+		<option
+			value="new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_FORWARDDIAGONAL, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2), new dojo.Color([255,255,0,0.25]))">Forward
+			diagonal</option>
+		<option
+			value="new esri.symbol.SimpleFillSymbol(esri.symbol.SimpleFillSymbol.STYLE_DIAGONALCROSS, new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_DASHDOT, new dojo.Color([255,0,0]), 2), new dojo.Color([255,255,0,0.25]))">Diagonal
+			cross</option>
+		<option value="">--- Picture Fill Symbols ---</option>
+		<option value="">No Default</option>
+		<option
+			value="new esri.symbol.PictureFillSymbol('images/sand.png', new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color('#000'), 1), 42, 42)">Sand</option>
+		<option
+			value="new esri.symbol.PictureFillSymbol('images/mangrove.png', new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color('#000'), 1), 42, 42)">Mangrove</option>
+		<option
+			value="new esri.symbol.PictureFillSymbol('images/swamp.png', new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color('#000'), 1), 42, 42)">Swamp</option>
+		<option
+			value="new esri.symbol.PictureFillSymbol('images/stiple.png', new esri.symbol.SimpleLineSymbol(esri.symbol.SimpleLineSymbol.STYLE_SOLID, new dojo.Color('#000'), 1), 42, 42)">Ordered
+			10% Stiple</option>
+	</select>
+
+	<div id="map"
+		style="width: 1024px; height: 512px; border: 2px solid #000;"
+		class="tundra"></div>
+
+	<br /> Zoom Slider : <input type="button" value="Hide"
+		onclick="map.hideZoomSlider()" /> <input type="button" value="Show"
+		onclick="map.showZoomSlider()" />
+</div>
